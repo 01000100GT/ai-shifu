@@ -11,7 +11,8 @@ const ImageInject: React.FC<ImageInjectProps> = ({ onSelect }) => {
   const { t } = useTranslation();
   const [imageUrl, setImageUrl] = useState<string>('')
   const handleSelect = () => {
-    onSelect?.("![image](" + imageUrl + ")")
+    onSelect(imageUrl)
+    // onSelect?.("![image](" + imageUrl + ")")
   }
   return (
     <div>

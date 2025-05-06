@@ -1,13 +1,21 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import {
   autocompletion,
   type CompletionContext,
   type CompletionResult
 } from '@codemirror/autocomplete'
-import { EditorView } from '@codemirror/view'
+import {
+  EditorView,
+  Decoration,
+  DecorationSet,
+  ViewPlugin,
+  ViewUpdate,
+  MatchDecorator,
+  WidgetType
+} from '@codemirror/view'
 import CustomDialog from './components/custom-dialog'
 import EditorContext from './editor-context'
 import type { Profile } from '@/components/profiles/type'
@@ -16,6 +24,125 @@ import VideoInject from './components/video-inject'
 import ProfileInject from './components/profile-inject'
 import { SelectedOption, IEditorContext } from './type'
 import { useTranslation } from 'react-i18next'
+
+import './index.css'
+
+class PlaceholderWidget extends WidgetType {
+  constructor (
+    private name: string,
+    private styleClass: string,
+    private type: SelectedOption
+  ) {
+    super()
+  }
+
+  toDOM () {
+    const span = document.createElement('span')
+    span.className = this.styleClass
+    span.textContent = `${this.name}`
+    span.addEventListener('click', () => {
+      const event = new CustomEvent('globalTagClick', {
+        detail: { type: this.type }
+      })
+      window.dispatchEvent(event)
+    })
+    return span
+  }
+
+  ignoreEvent () {
+    return false
+  }
+}
+
+const profileMatcher = new MatchDecorator({
+  regexp: /(\{\w+\})/g,
+  decoration: match =>
+    Decoration.replace({
+      widget: new PlaceholderWidget(
+        match[1],
+        'tag-profile',
+        SelectedOption.Profile
+      )
+    })
+})
+
+const imageUrlMatcher = new MatchDecorator({
+  regexp:
+    /(https?:\/\/(?:avtar\.agiclass\.cn)\S+(?:\.(?:png|jpg|jpeg|gif|bmp))?)/g,
+  decoration: match =>
+    Decoration.replace({
+      widget: new PlaceholderWidget(match[1], 'tag-image', SelectedOption.Image)
+    })
+})
+
+const bilibiliUrlMatcher = new MatchDecorator({
+  regexp: /(https?:\/\/(?:www\.|m\.)?bilibili\.com\/video\/\S+)/g,
+  decoration: match =>
+    Decoration.replace({
+      widget: new PlaceholderWidget(match[1], 'tag-video', SelectedOption.Video)
+    })
+})
+
+const profilePlaceholders = ViewPlugin.fromClass(
+  class {
+    placeholders: DecorationSet
+    constructor (view: EditorView) {
+      this.placeholders = profileMatcher.createDeco(view)
+    }
+    update (update: ViewUpdate) {
+      this.placeholders = profileMatcher.updateDeco(update, this.placeholders)
+    }
+  },
+  {
+    decorations: instance => instance.placeholders,
+    provide: plugin =>
+      EditorView.atomicRanges.of(view => {
+        return view.plugin(plugin)?.placeholders || Decoration.none
+      })
+  }
+)
+
+const imgPlaceholders = ViewPlugin.fromClass(
+  class {
+    placeholders: DecorationSet
+    constructor (view: EditorView) {
+      this.placeholders = imageUrlMatcher.createDeco(view)
+    }
+    update (update: ViewUpdate) {
+      this.placeholders = imageUrlMatcher.updateDeco(update, this.placeholders)
+    }
+  },
+  {
+    decorations: instance => instance.placeholders,
+    provide: plugin =>
+      EditorView.atomicRanges.of(view => {
+        return view.plugin(plugin)?.placeholders || Decoration.none
+      })
+  }
+)
+
+const videoPlaceholders = ViewPlugin.fromClass(
+  class {
+    placeholders: DecorationSet
+    constructor (view: EditorView) {
+      this.placeholders = bilibiliUrlMatcher.createDeco(view)
+    }
+    update (update: ViewUpdate) {
+      this.placeholders = bilibiliUrlMatcher.updateDeco(
+        update,
+        this.placeholders
+      )
+    }
+  },
+  {
+    decorations: instance => instance.placeholders,
+    provide: plugin =>
+      EditorView.atomicRanges.of(view => {
+        return view.plugin(plugin)?.placeholders || Decoration.none
+      })
+  }
+)
+
 function createSlashCommands (
   onSelectOption: (selectedOption: SelectedOption) => void
 ) {
@@ -84,7 +211,6 @@ const Editor: React.FC<EditorProps> = ({
     SelectedOption.Empty
   )
   const [profileList, setProfileList] = useState<string[]>(profiles)
-
   const editorViewRef = useRef<EditorView | null>(null)
 
   const editorContextValue: IEditorContext = {
@@ -93,7 +219,7 @@ const Editor: React.FC<EditorProps> = ({
     dialogOpen,
     setDialogOpen,
     profileList,
-    setProfileList,
+    setProfileList
   }
 
   const onSelectedOption = useCallback((selectedOption: SelectedOption) => {
@@ -101,37 +227,37 @@ const Editor: React.FC<EditorProps> = ({
     setSelectedOption(selectedOption)
   }, [])
 
-  const insertText = useCallback((text: string) => {
-    if (!editorViewRef.current) return
+  const insertTextAsTag = useCallback(
+    (text: string) => {
+      if (!editorViewRef.current) return
 
-    const { state, dispatch } = editorViewRef.current
-    const changes = {
-      from: state.selection.main.from,
-      insert: text
-    }
+      const { state, dispatch } = editorViewRef.current
+      const from = state.selection.main.from
 
-    dispatch({
-      changes,
-      selection: { anchor: changes.from + text.length }
-    })
-  }, [])
+      dispatch({
+        changes: { from, insert: text },
+        selection: { anchor: from + text.length }
+      })
+    },
+    [editorViewRef]
+  )
 
   const handleSelectProfile = useCallback(
     (profile: Profile) => {
       const textToInsert = `{${profile.profile_key}}`
-      insertText(textToInsert)
+      insertTextAsTag(textToInsert)
       setDialogOpen(false)
     },
-    [insertText, selectedOption]
+    [insertTextAsTag, selectedOption]
   )
 
   const handleSelectResource = useCallback(
     (resourceUrl: string) => {
       const textToInsert = ` ${resourceUrl} `
-      insertText(textToInsert)
+      insertTextAsTag(textToInsert)
       setDialogOpen(false)
     },
-    [insertText, selectedOption]
+    [insertTextAsTag, selectedOption]
   )
 
   const slashCommandsExtension = useCallback(() => {
@@ -144,6 +270,23 @@ const Editor: React.FC<EditorProps> = ({
     editorViewRef.current = view
   }, [])
 
+  const handleTagClick = useCallback(
+    (event: any) => {
+      const { type } = event.detail
+      setSelectedOption(type)
+      setDialogOpen(true)
+    },
+    [setSelectedOption, setDialogOpen]
+  )
+
+  useEffect(() => {
+    window.addEventListener('globalTagClick', handleTagClick)
+
+    return () => {
+      window.removeEventListener('globalTagClick', handleTagClick)
+    }
+  }, [handleTagClick])
+
   return (
     <>
       <EditorContext.Provider value={editorContextValue}>
@@ -153,6 +296,9 @@ const Editor: React.FC<EditorProps> = ({
               extensions={[
                 EditorView.lineWrapping,
                 slashCommandsExtension(),
+                profilePlaceholders,
+                imgPlaceholders,
+                videoPlaceholders,
                 EditorView.updateListener.of(update => {
                   handleEditorUpdate(update.view)
                 })

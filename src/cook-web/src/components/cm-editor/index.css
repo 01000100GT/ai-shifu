@@ -1,0 +1,17 @@
+.tag-profile,
+.tag-image,
+.tag-video {
+    background-color: #e5484d;
+    padding: 2px;
+    border-radius: 3px;
+    color: #fff;
+    cursor: pointer;
+}
+
+.tag-image {
+    background-color: #46a758;
+}
+
+.tag-video {
+    background-color: #0090ff;
+}
