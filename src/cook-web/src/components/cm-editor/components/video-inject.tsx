@@ -3,13 +3,15 @@ import Button from '@/components/button'
 import { Input } from '@/components/ui/input'
 import React, { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
 type VideoInjectProps = {
+  value?: string
   onSelect: (resourceUrl: string) => void
 }
 
-const VideoInject: React.FC<VideoInjectProps> = ({ onSelect }) => {
-  const { t } = useTranslation();
-  const [inputUrl, setInputUrl] = useState('')
+const VideoInject: React.FC<VideoInjectProps> = ({ value, onSelect }) => {
+  const { t } = useTranslation()
+  const [inputUrl, setInputUrl] = useState<string>(value || '')
   const [embedUrl, setEmbedUrl] = useState('')
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const lastUrlRef = useRef('')
@@ -70,7 +72,11 @@ const VideoInject: React.FC<VideoInjectProps> = ({ onSelect }) => {
         <Button className='h-8' onClick={handleRun}>
           {t('common.run')}
         </Button>
-        {embedUrl && <Button className='h-8' onClick={handleSelect}>{t('common.use-resource')}</Button>}
+        {embedUrl && (
+          <Button className='h-8' onClick={handleSelect}>
+            {t('common.use-resource')}
+          </Button>
+        )}
       </div>
       {!!errorTips && <div>{errorTips}</div>}
 
