@@ -49,6 +49,7 @@ const VideoInject: React.FC<VideoInjectProps> = ({ value, onSelect }) => {
         const returnUrlObj = new URL(inputUrl)
         onSelect(returnUrlObj.origin + returnUrlObj.pathname)
       } catch (error) {
+        console.log('error', error)
         onSelect(inputUrl)
       }
     }
